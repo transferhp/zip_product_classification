@@ -38,7 +38,7 @@ pip install -r requirements.txt
 to install the required dependencies;
 
 ## Usage
-More examples can be found in notebooks [folder](./notebooks).
+More examples about data processing, EDA, clustering visualisation, modelling and referencing can be found in notebooks [folder](./notebooks).
 
 
 <!-- CONTACT -->
