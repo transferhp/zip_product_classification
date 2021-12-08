@@ -16,8 +16,6 @@ product_classification
 
 <!-- ABOUT THE PROJECT -->
 ## About The Project
---------
-
 
 This is my solution to Zip Co Limited Data Science challenge test.
 
@@ -27,7 +25,6 @@ More descriptions and requirements about the test can be found [here](./URG-Data
 
 <!-- GETTING STARTED -->
 ## Getting Started
------
 ### Installation
 
 - Clone the repository by running command:
@@ -42,9 +39,9 @@ pip install -r requirements.txt
 to install the required dependencies;
 
 ## Solution walkthrough
-------
 Before running any data analysis or prediction, it is always important to understand the data first. Given our goal is to build a classifier to predict which category a product should belong to, a lot of product relevant information is provided, like product name, text description and pictures etc. 
 
+### Preprocess
 For simplicity, I focus on using only name and description as inputs for building the classifier. To prepare the text data for the model building, text processing is needed to conduct as it is the very first step for any NLP projects. Some classical preprocessing steps are:
 
 * Remove punctuations, like . , ! $( ) * % @
@@ -101,7 +98,7 @@ def load_raw_data(file_path):
         return data
 ``` 
 
-During processing, I have run all listed above steps to clean the text data. More specifically,
+During processing, I have run all listed above steps to clean the text data. More details can be found in following used functions.
 ```python
 def stemming_words(words):
     stemmer = PorterStemmer()
@@ -133,6 +130,7 @@ def text_processing(input_str):
     return " ".join(list_words)
 ```
 
+### EDA
 After cleaning all the data, I converted the dictionary into a Pandas DataFrame to assist initial exploratory data analysis. The cleaned data has 125344 rows and 8 columns. 
 
 First step is to check missing values in each column. There is no NaN value in our data as we are handling text data, but it is necessary to check empty string in each column by
@@ -144,7 +142,7 @@ cleaned_df.replace('', np.nan).isnull().sum()
 
 Due to the nature of craweling data, it is expected to see empty or blank for name or description about a product.
 
-Next we will look what is the distribution for different level of product category.
+Then I check the distribution of product category at different level.
 
 <center>Product category distribution at level 0</center>
 
@@ -164,8 +162,36 @@ From the distribution plot, we can easily find that **fasion** is the largest ca
 Besides category distribution, I also checked the word length of product name and description.
 ![length_distribution](./pictures/length_distribution.png)
 
-It turns out that for most of products in the crawled data we don't have a long text description though we combined both name and original long description.
+It turns out that for most of products in the crawled data we generally don't have a long text associated though we combined both name and original long description together.
 
+Next, it is always helpful to visualize the high-dimensional text data before applying machine learning models. To extract information from raw text data, I apply TF-IDF (Term Frequency - Inverse Dense Frequency) technique to vectorize the preprocessed corpus of the dataset to extract a vocabulary and create the feature matrix. The feature matrix is pretty sparse considering all the distinct words we may get from original product description. We can transform and reduce our input feature space through the Principal Component Analysis (PCA). In our case, I instead use TruncatedSVD as we are handling a sparse matrix.
+
+Putting the Tf-Idf vectorizer and the PCA in a pipeline allows us to transform and reduce dimension of raw text data in just one step. I try with 50 components in my solution as a start.
+```python
+pca_pipeline = Pipeline([
+    ('vect', TfidfVectorizer(ngram_range=(1,3), stop_words='english', 
+                             sublinear_tf=True, max_features=50000, min_df=2)),
+    ('pca', TruncatedSVD(n_components=50, random_state=123))
+])
+
+pca_50 = pca_pipeline.fit_transform(df['name_desc'])
+```
+Each component extracted by the decomposition will express a given amount of the variance of our data. In the best case, all the variance is expressed by a low number of new features. PCA performs the decomposition and maps the input data to the new vector space.
+```python
+pca_50 = pca_pipeline.fit_transform(df['name_desc'])
+
+print('Cumulative explained variation for 50 principal components: {}'.format(np.sum(pca_pipeline.named_steps["pca"].explained_variance_ratio_)))
+```
+```sh
+Cumulative explained variation for 50 principal components: 0.13667637036453745
+```
+Let's see how data points are grouped in the new 3D dimenstion that are determined by the top3 components we get from PCA.
+
+![pca_lvl0](./pictures/pca_lvl0.png)
+
+![pca_lvl1](./pictures/pca_lvl1.png)
+
+![pca_lvl0](./pictures/pca_lvl2.png)
 
 
 
@@ -177,7 +203,6 @@ More examples about data processing, EDA, clustering visualisation, modelling an
 
 <!-- CONTACT -->
 ## Contact
------
 Author: [Peng Hao](haopengbuaa@gmail.com)
 
 Project Link: [https://github.com/transferhp/zip_product_classification.git](https://github.com/transferhp/zip_product_classification.git)
