@@ -129,6 +129,8 @@ def text_processing(input_str):
     list_words = lemmatize_words(list_words)
     return " ".join(list_words)
 ```
+Notebook that contains all the preprocessing steps can be found [here](./notebooks/data_processing_initial_EDA.ipynb)
+
 
 ### EDA
 After cleaning all the data, I converted the dictionary into a Pandas DataFrame to assist initial exploratory data analysis. The cleaned data has 125344 rows and 8 columns. 
@@ -164,7 +166,12 @@ Besides category distribution, I also checked the word length of product name an
 
 It turns out that for most of products in the crawled data we generally don't have a long text associated though we combined both name and original long description together.
 
-Next, it is always helpful to visualize the high-dimensional text data before applying machine learning models. To extract information from raw text data, I apply TF-IDF (Term Frequency - Inverse Dense Frequency) technique to vectorize the preprocessed corpus of the dataset to extract a vocabulary and create the feature matrix. The feature matrix is pretty sparse considering all the distinct words we may get from original product description. We can transform and reduce our input feature space through the Principal Component Analysis (PCA). In our case, I instead use TruncatedSVD as we are handling a sparse matrix.
+
+Notebook with all data analysis can be found [here](./notebooks/data_processing_initial_EDA.ipynb)
+
+
+## Dimension Reduction and visualisation
+It is always helpful to visualize the high-dimensional data before applying machine learning models. In our case, to extract information from raw text data, I apply TF-IDF (Term Frequency - Inverse Dense Frequency) technique to vectorize the preprocessed corpus of the dataset to extract a vocabulary and create the feature matrix. The feature matrix is pretty sparse considering all the distinct words we may get from original product description. We can transform and reduce our input feature space through the Principal Component Analysis (PCA). In terms of handling a sparse matrix, I use TruncatedSVD instead.
 
 Putting the Tf-Idf vectorizer and the PCA in a pipeline allows us to transform and reduce dimension of raw text data in just one step. I try with 50 components in my solution as a start.
 ```python
@@ -185,7 +192,7 @@ print('Cumulative explained variation for 50 principal components: {}'.format(np
 ```sh
 Cumulative explained variation for 50 principal components: 0.13667637036453745
 ```
-Let's see how data points are grouped in the new 3D dimenstion that are determined by the top3 components we get from PCA.
+Now, lets see if the first three components are enough to visually set the different data points apart. I create a 3D scatterplot of the first three principal components and color each of the different types of categories with a different color. 
 
 ![pca_lvl0](./pictures/pca_lvl0.png)
 
@@ -193,11 +200,39 @@ Let's see how data points are grouped in the new 3D dimenstion that are determin
 
 ![pca_lvl0](./pictures/pca_lvl2.png)
 
+From above plots, it is clearly not enough to set all of categories apart. Next I explore t-SNE (t-Distributed Stochastic Neighbouring Entities) as another alternative to reduce dimension.
+```python
+# Apply T-SNE on PCA output
+tsne_model = TSNE(n_components=2, perplexity=50, n_iter=300, n_jobs=4, verbose=1)
+tsne_results = tsne_model.fit_transform(pca_50)
+```
+Now that we have the resulting dimensions we can again visualise them by creating a scatter plot of the two dimensions and coloring each sample by its respective category label.
 
+![tsne_lvl0](./pictures/tsne_lvl0.png)
 
+![tsne_lvl1](./pictures/tsne_lvl1.png)
 
-More examples about data processing, EDA, clustering visualisation, modelling and referencing can be found in `notebooks` [folder](./notebooks).
+![tsne_lvl2](./pictures/tsne_lvl2.png)
 
+There is a significant improvement over PCA, we can see that products are clearly clustered within in their sub-groups when tagged by category level 0 (root category) and level 1 (child of root category). However, it seems some product groups are hard to separate with category level 2 (category produced by internal REGEX classifier), which definitely means that some improvements can be made there.
+
+Notebook that shows dimension reduction and visualization can be found [here](./notebooks/Visualisation_PCA_TSNE.ipynb)
+
+## Modelling and evaluation
+Through above visual results, it shows possibility to build a supervised machine learning classifier to predict product category. To this end, I use TF-IDF vectorizer and multinomial logistic regression to construct our modelling pipeline.
+```python
+# build a pipeline 
+pipeline = Pipeline([('vect', TfidfVectorizer(ngram_range=(1,3), stop_words='english', 
+                                              sublinear_tf=True, max_features=50000, min_df=2)),
+                     ('clf', LogisticRegression(C=1e2, n_jobs=4, solver='lbfgs', 
+                                                random_state=17, verbose=0, 
+                                                multi_class='multinomial',
+                                                fit_intercept=True))
+                    ])
+```
+Notebook to train and evaluate a model can be found [here](./notebooks/baseline_desc_tfidf_lr.ipynb)
+
+## Serving and inference
 
 
 
