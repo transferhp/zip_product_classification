@@ -335,6 +335,11 @@ eli5.show_weights(
 ```
 By looking at those top positive words, I feel they are quite supportive and fairly good for the model to make a dicision.
 
+## Hyper-parameter tuning
+Given the focus of this task is to quickly validate model POC and the model can already achieve good results, so I skip the hyper-parameter tuning step and instead use the default penalty parameter and fixed parameter `C` in the demostration. But some Bayesian parameter tuning tools, like `HyperOpt`, can be used to do this job if required.
+
+
+
 ## Serving and inference
 Once model is trained and we are happy with the results, next we may consider to deploy and serve the model. 
 
