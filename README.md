@@ -219,7 +219,7 @@ There is a significant improvement over PCA, we can see that products are clearl
 Notebook that shows dimension reduction and visualization can be found [here](./notebooks/Visualisation_PCA_TSNE.ipynb)
 
 ## Modelling and evaluation
-Through above visual results, it shows possibility to build a supervised machine learning classifier to predict product category. To this end, I use TF-IDF vectorizer and multinomial logistic regression to construct our modelling pipeline.
+Through above visual results, it shows possibility to build a supervised machine learning classifier to predict product category. To this end, I explore word level features (handled by TF-IDF vectorizer) and multinomial logistic regression classifier to construct our baseline model.
 ```python
 # build a pipeline 
 pipeline = Pipeline([('vect', TfidfVectorizer(ngram_range=(1,3), stop_words='english', 
@@ -230,9 +230,128 @@ pipeline = Pipeline([('vect', TfidfVectorizer(ngram_range=(1,3), stop_words='eng
                                                 fit_intercept=True))
                     ])
 ```
-Notebook to train and evaluate a model can be found [here](./notebooks/baseline_desc_tfidf_lr.ipynb)
+For the training data, product long descriptions are fit and transformed by the pipeline, while for the label, I use flat structure by joining level0, level1 and level2 with '|'.
+```python
+pipeline.fit(train_df['desc'], train_df['cat0_cat1_cat2'])
+``` 
+```sh
+Pipeline(steps=[('vect',
+                 TfidfVectorizer(max_features=50000, min_df=2,
+                                 ngram_range=(1, 3), stop_words='english',
+                                 sublinear_tf=True)),
+                ('clf',
+                 LogisticRegression(C=100.0, multi_class='multinomial',
+                                    n_jobs=4, random_state=17))])
+```
+
+Once the model is trained, we can test it on the hold-out dataset (test data, which never been seen by the model to evaluate its generality)
+```python
+pred_level_3 = pipeline.predict(test_df['desc'])
+```
+The prediction for level0, level1 and level2 can be further derived by
+```python
+pred_level_0 = [el.split('|')[0] for el in pred_level_3]
+pred_level_1 = [el.split('|')[1] for el in pred_level_3]
+pred_level_2 = [el.split('|')[2] for el in pred_level_3]
+```
+
+Metrics like precision, recall or F1-score can summarize the model quality. Following shows results of evaluting model performance at different category level.
+
+```python
+print(classification_report(
+    y_true=test_df['cat0'], 
+    y_pred=pred_level_0,
+    digits=4)
+)
+```
+```sh
+              precision    recall  f1-score   support
+
+ electronics     0.9734    0.9686    0.9710      1211
+     fashion     0.9971    0.9985    0.9978     17303
+    hardware     0.9880    0.9821    0.9850      2509
+        home     0.9871    0.9862    0.9866      4046
+
+    accuracy                         0.9934     25069
+   macro avg     0.9864    0.9838    0.9851     25069
+weighted avg     0.9934    0.9934    0.9934     25069
+```
+```python
+print(classification_report(
+    y_true=test_df['cat1'], 
+    y_pred=pred_level_1,
+    digits=4)
+)
+```
+```sh
+                              precision    recall  f1-score   support
+
+      electronics-smart-home     0.9734    0.9686    0.9710      1211
+                fashion-bags     0.9977    0.9966    0.9971      2615
+            fashion-clothing     0.9965    0.9984    0.9975     14688
+              hardware-tools     0.9880    0.9821    0.9850      2509
+home-furniture, home-kitchen     0.9871    0.9862    0.9866      4046
+
+                    accuracy                         0.9932     25069
+                   macro avg     0.9886    0.9864    0.9875     25069
+                weighted avg     0.9932    0.9932    0.9932     25069
+```
+
+```python
+print(classification_report(
+    y_true=test_df['cat2'], 
+    y_pred=pred_level_2,
+    digits=4)
+)
+```
+
+```sh
+recall  f1-score   support
+
+             electronics-smart-home-security-cameras-and-systems     0.9734    0.9686    0.9710      1211
+                                 fashion-bags-laptop-tablet-bags     0.9977    0.9966    0.9971      2615
+                            fashion-clothing-jumpsuits-playsuits     0.9482    0.9674    0.9577      3217
+fashion-clothing-jumpsuits-playsuits, fashion-clothing-sleepwear     0.8378    0.5167    0.6392        60
+     fashion-clothing-jumpsuits-playsuits, fashion-clothing-tops     0.8766    0.7584    0.8133       356
+                                      fashion-clothing-maternity     0.9809    0.9764    0.9787      4746
+              fashion-clothing-pants, fashion-clothing-sleepwear     0.8429    0.8365    0.8397       263
+                                      fashion-clothing-sleepwear     0.9661    0.9754    0.9707      6046
+                                      hardware-tools-power-tools     0.9880    0.9821    0.9850      2509
+                   home-furniture-outdoor, home-kitchen-cookware     0.9871    0.9862    0.9866      4046
+
+                                                        accuracy                         0.9732     25069
+                                                       macro avg     0.9399    0.8964    0.9139     25069
+                                                    weighted avg     0.9730    0.9732    0.9729     25069
+```
+Above results show that we can achieve pretty decent accuracy over 97%. Notebook to train and evaluate a baseline model can be found [here](./notebooks/baseline_desc_tfidf_lr.ipynb).
+
+I also experiment with another improvement by training model with both product name and long descriptions. Results show that marginal improvement can be further achieved with this small change. More details can be found in this [notebook](./notebooks/name_desc_tfidf_lr.ipynb).
+
+Besides checking those accuracy metrics, I also try to explore which words are more important in predicting different product categories, so that it will gave us more confidence and explainnations about how those predictions are made by the model. For example, checking contributions of different words in decision made by baseline model.
+```python
+eli5.show_weights(
+    estimator=pipeline.named_steps['clf'],
+    vec=pipeline.named_steps['vect'])
+```
+By looking at those top positive words, I feel they are quite supportive and fairly good for the model to make a dicision.
 
 ## Serving and inference
+Once model is trained and we are happy with the results, next we may consider to deploy and serve the model. 
+
+To this end, we need to save the model itself and corresponding transformers as well. As for us, it is much easier to save the whole sklearn pipeline by
+```python
+import joblib
+
+joblib.dump(pipeline, 'baseline_model.joblib')
+```
+so that whenever we want to call the model to make a prediction, we can safely load back the whole consistent pipeline by
+```python
+pipeline = joblib.load("baseline_model.joblib")
+```
+
+In my solution I only care about implementing and testing POC, so not too many MLOps techiniqes are consider there. But for tracking and registering trained models and associated parameters, we can use `MLflow` as a good candidate tool if we want to productionize the models .
+
+Simple example showing how inference is generated can be found [here](./notebooks/inference.ipynb)
 
 
 
