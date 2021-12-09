@@ -8,7 +8,7 @@ product_classification
 * [About the Project](#about-the-project)
 * [Getting Started](#getting-started)
   * [Installation](#installation)
-* [Usage](#usage)
+* [Solution walk-through](#solution-walk-through)
 * [Contact](#contact)
 
 
@@ -38,7 +38,7 @@ pip install -r requirements.txt
 ```
 to install the required dependencies;
 
-## Solution walkthrough
+## Solution walk-through
 Before running any data analysis or prediction, it is always important to understand the data first. Given our goal is to build a classifier to predict which category a product should belong to, a lot of product relevant information is provided, like product name, text description and pictures etc. 
 
 ### Preprocess
@@ -400,6 +400,27 @@ pipeline = joblib.load("baseline_model.joblib")
 In my solution I only care about implementing and testing POC, so not too many MLOps techiniqes are consider there. But for tracking and registering trained models and associated parameters, we can use `MLflow` as a good candidate tool if we want to productionize the models .
 
 Simple example showing how inference is generated can be found [here](./notebooks/inference.ipynb)
+
+
+### Summary
+In this solution, I have used TF-IDF vectorizer and multinomial logistic regression to build a POC (Proof Of Concept) for classifying product category hierarchy with input data craweld from E-commerence websites. The experiments tested on **test data** show that by using only product long descriptions we can achieve over 97% accuracy. In addition, we can further achieve marginal improvement if we use product name and descriptions to train the model.
+
+The work there is *only* about building and verifying POC, there are a lot of engineering requirements to consider if the team wants to productionise the model. For example:
+
+* How to handle the new product with a new descriptions?
+* How to speed up training process when applying on large scale of text data?
+* etc.
+
+The answers to above questions can be different, but my suggestions would be following:
+
+* The model will continue to work though passing in a new product description that has never been seen during model training. Internally TF-IDF vectorizer will ingore the new tokens and keeps generating feature matrix on the trained vocubulary. The prediction may get worse in some cases;
+
+* To keep the model continuously performing well, we can take two options:
+  
+  1. Retrain the model on a specific cadance. This will increase the chance of letting the model trained on the new corpus;
+  2. Use pre-trained model (like Google BERT) or extracted vocabulary, which is getting from handling large scale NLP tasks.
+
+* Consider splitting feature engineering and model training in production, so that more optimization can be done on feature engineering and we can use more adanvaned ml tools to track input features (e.g. Feature Store)  
 
 
 
