@@ -336,8 +336,51 @@ eli5.show_weights(
 By looking at those top positive words, I feel they are quite supportive and fairly good for the model to make a dicision.
 
 ## Hyper-parameter tuning
-Given the focus of this task is to quickly validate model POC and the model can already achieve good results, so I skip the hyper-parameter tuning step and instead use the default penalty parameter and fixed parameter `C` in the demostration. But some Bayesian parameter tuning tools, like `HyperOpt`, can be used to do this job if required.
+An important hyperparameter to tune for multinomial logistic regression is the penalty term.
 
+In the sklearn implementation, by default logistic regression model uses L2 penalty with a weighting of coefficients, which can be set via the *"C"* argument. I choose to use L2 regularization and only need to explore the weighting of coefficients (*C* argument) in the range from 0.5 to 100 via grid search method. Following code shows how to use sklearn grid search cross validation framework to get the optimial parameter.
+
+```python
+# build a pipeline 
+pipeline = Pipeline([('vect', TfidfVectorizer(ngram_range=(1,3), stop_words='english', 
+                                              sublinear_tf=True, max_features=50000, min_df=2)),
+                     ('clf', LogisticRegression(n_jobs=4, solver='lbfgs', 
+                                                random_state=17, verbose=0, 
+                                                multi_class='multinomial',
+                                                penalty="l2", max_iter=1000,
+                                                fit_intercept=True))
+                    ])
+# Tune the weight that controls the strength of penalty (Smaller values specify stronger regularization)
+parameters = {
+    "clf__C": [0.5, 1, 10, 100] 
+}
+grid_search = GridSearchCV(pipeline, parameters, n_jobs=-1, verbose=1, cv=5, scoring="accuracy")
+
+print("Logging info - Performing grid search")
+print("parameters:")
+pprint(parameters)
+t0 = time()
+grid_search.fit(train_df["desc"], train_df["cat0_cat1_cat2"])
+print("done in %0.3fs" % (time() - t0))
+```
+```sh
+Logging info - Performing grid search
+parameters:
+{'clf__C': [0.5, 1, 10, 100]}
+Fitting 5 folds for each of 4 candidates, totalling 20 fits
+done in 1001.541s
+```
+We can get the optimal parameters together with the best result during the cross validation by running  
+```python
+print(grid_search.best_score_)
+print(grid_search.best_params_)
+```
+```sh
+0.970541012216405
+{'clf__C': 100}
+```
+
+The grid search process would take a long time to run, the searching space will explode if we have more parameters to tune. Also, how to reliablely set up intial searching cadidates is a problem. In that case, I would turn to use some Baysian optimization packages like `HyperOpt`, to assist the parameter tuning.
 
 
 ## Serving and inference
